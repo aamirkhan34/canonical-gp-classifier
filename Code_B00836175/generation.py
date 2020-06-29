@@ -28,5 +28,5 @@ def run_each_generation(program_list, generation_count, df, gap, tdp, MAX_PROGRA
                                                                                     )
 
     # Check, save and print metrics of best classifier
-    save_and_test_champ_classifier(program_list, X_train, y_train, X_test, y_test, register_class_map,
-                                   NUMBER_OF_REGISTERS, dataset, st)
+    data_module_mapping[dataset].save_and_test_champ_classifier(program_list, X_train, y_train, X_test, y_test,
+                                                                register_class_map, NUMBER_OF_REGISTERS, dataset, st)
