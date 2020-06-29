@@ -77,14 +77,14 @@ def get_fitness_scores(fitness_scores, program_list, vr_obj, X_train, y_train, r
 def save_fittest_individual(program, fitness_score, register_class_map, dataset):
     data = {}
 
-    if "fittest_programs" not in os.listdir():
-        os.makedirs("fittest_programs")
+    if "best_programs" not in os.listdir():
+        os.makedirs("best_programs")
 
-    if dataset not in os.listdir("fittest_programs/"):
-        os.makedirs("fittest_programs/"+dataset)
+    if dataset not in os.listdir("best_programs/"):
+        os.makedirs("best_programs/"+dataset)
 
-    if "fittest_program.json" in os.listdir("fittest_programs/"+dataset+"/"):
-        with open("fittest_programs/"+dataset+"/fittest_program.json", "r") as json_file:
+    if "best_program.json" in os.listdir("best_programs/"+dataset+"/"):
+        with open("best_programs/"+dataset+"/best_program.json", "r") as json_file:
             data = json.load(json_file)
 
     if data:
@@ -93,14 +93,14 @@ def save_fittest_individual(program, fitness_score, register_class_map, dataset)
             data["program"] = str(program)
             data["label_mapping"] = str(register_class_map)
 
-            with open("fittest_programs/"+dataset+"/fittest_program.json", 'w') as outfile:
+            with open("best_programs/"+dataset+"/best_program.json", 'w') as outfile:
                 json.dump(data, outfile)
     else:
         data["fitness_score"] = fitness_score
         data["program"] = str(program)
         data["label_mapping"] = str(register_class_map)
 
-        with open("fittest_programs/"+dataset+"/fittest_program.json", 'w') as outfile:
+        with open("best_programs/"+dataset+"/best_program.json", 'w') as outfile:
             json.dump(data, outfile)
 
 
