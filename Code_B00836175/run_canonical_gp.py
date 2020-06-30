@@ -39,24 +39,25 @@ if __name__ == '__main__':
                    help='Dataset to be used, default to thyroid', choices=["iris", "tic-tac-toe", "shuttle", "thyroid"],
                    default="thyroid")
     p.add_argument('--p', metavar='population_size', type=int,
-                   help='Size of population, default to 100', choices=[100, 500, 1000, 5000, 10000], default=100)
+                   help='Size of population, default to 500', choices=[100, 500, 1000, 5000, 10000], default=500)
     p.add_argument('--g', metavar='Number of generations', type=int,
-                   help='Number of generations, default to 100', choices=[100, 500, 1000], default=100)
+                   help='Number of generations, default to 1000', choices=[100, 500, 1000], default=1000)
     p.add_argument('--nr', metavar='Number of registers', type=int,
                    help='Number of registers, default to 4', default=4)
     p.add_argument('--t', metavar='Training subset size', type=int,
                    help='Training subset size, default to 200', choices=[200, 300, 500], default=200)
-    p.add_argument('-st', metavar='Sampling technique', type=str,
+    p.add_argument('--st', metavar='Sampling technique', type=str,
                    help="Sampling technique, default to 'uniformly'", choices=["uniformly", "equally"],
                    default="uniformly")
-    p.add_argument('-rp', metavar='Re-sampling period', type=int,
+    p.add_argument('--rp', metavar='Re-sampling period', type=int,
                    help='Re-sampling period, default to 5 generations', choices=[5, 10, 15, 20, 25], default=5)
 
     args = p.parse_args()
 
     print('Parameters:')
     print("""\tTest data porportion: %d\n\tGap percentage: %d\n\tPopulation size: %d\n\tNumber of Generations: %d
-        Dataset: %s""" % (args.tdp, args.gap, args.p, args.g, args.d))
+        Dataset: %s\n\tSampling technique: %s\n\tTraining subset size: %d\n\tResampling period: %d"""
+          % (args.tdp, args.gap, args.p, args.g, args.d, args.st, args.t, args.rp))
 
     # OTHER PARAMETERS
     MAX_PROGRAM_SIZE = 64
@@ -71,6 +72,9 @@ if __name__ == '__main__':
         data_module_mapping = {"shuttle": shuttle, "thyroid": thyroid,
                                "tic-tac-toe": tic_tac_toe, "iris": iris}
 
+        # Load dataset
+        df = data_module_mapping[args.d].load_dataset(args.d)
+
         # Validate and get number of registers
         NUMBER_OF_REGISTERS = data_module_mapping[args.d].validate_get_register_count(
             NUMBER_OF_REGISTERS, df)
@@ -78,9 +82,6 @@ if __name__ == '__main__':
         vr_obj = VariableReference(NUMBER_OF_REGISTERS)
         print('\nInitial Registers:')
         print(vr_obj.get_registers())
-
-        # Load dataset
-        df = data_module_mapping[args.d].load_dataset(args.d)
 
         # Preprocess
         df = data_module_mapping[args.d].preprocess_data(df)

@@ -1,7 +1,9 @@
 import os
 import ast
 import json
+from pycm import *
 import numpy as np
+from sklearn import metrics
 
 import selection
 import operations
@@ -53,14 +55,14 @@ def classifier_detection_rate(y_pred, y_actual, number_of_labels):
         y_actual = np.array(y_actual)
 
     unique_labels = set(y_actual.tolist())
-
+    print(y_actual, y_pred, unique_labels)
     # Sum the detection rate for each label
     for label in unique_labels:
         tp = sum((y_actual == label) & (y_pred == label))
         fn = sum((y_actual == label) & (y_pred != label))
 
         dr = tp / (tp + fn)
-        print("DR for label, ", label, ": ", dr)
+        # print("DR for label, ", label, ": ", dr)
         sum_dr += dr
 
     DR = sum_dr / number_of_labels
@@ -144,16 +146,21 @@ def save_champion_classifier(program, score_type, score, register_class_map, dat
 
 def predict_and_save_best_classifier(program_list, X_train, y_train, register_class_map,
                                      NUMBER_OF_REGISTERS, dataset, st):
+    number_of_labels = len(register_class_map.keys())
+
     champ_classifier_by_dr = program_list[0]
     champ_classifier_by_acc = program_list[0]
 
-    y_pred = predict(
+    best_y_pred = predict(
         X_train, program_list[0], NUMBER_OF_REGISTERS, register_class_map)
 
-    champ_classifier_dr = classifier_detection_rate(
-        y_pred, y_train, number_of_labels)
+    best_y_pred_acc = best_y_pred
+    best_y_pred_dr = best_y_pred
 
-    champ_classifier_acc = classifier_accuracy(y_pred, y_train)
+    champ_classifier_dr = classifier_detection_rate(
+        best_y_pred, y_train, number_of_labels)
+
+    champ_classifier_acc = classifier_accuracy(best_y_pred, y_train)
 
     for program in program_list[1:]:
         y_pred = predict(
@@ -166,10 +173,12 @@ def predict_and_save_best_classifier(program_list, X_train, y_train, register_cl
         if program_accuracy > champ_classifier_acc:
             champ_classifier_acc = program_accuracy
             champ_classifier_by_acc = program
+            best_y_pred_acc = y_pred
 
         if program_detection_rate > champ_classifier_dr:
             champ_classifier_dr = program_detection_rate
             champ_classifier_by_dr = program
+            best_y_pred_dr = y_pred
 
     # Save classifier with highest DR
     save_champion_classifier(champ_classifier_by_dr, "DetectionRate", champ_classifier_dr,
@@ -178,3 +187,14 @@ def predict_and_save_best_classifier(program_list, X_train, y_train, register_cl
     # Save classifier with highest Accuracy
     save_champion_classifier(champ_classifier_by_acc, "Accuracy", champ_classifier_acc,
                              register_class_map, dataset, st)
+
+    print(metrics.classification_report(y_train, best_y_pred_acc, digits=3))
+    print(metrics.classification_report(y_train, best_y_pred_dr, digits=3))
+
+
+def save_confusion_matrix(y_true, y_pred, dataset, st, score_type):
+    # cm = metrics.confusion_matrix(y_true, y_pred)
+    filename = 'confusion_matrix_'+dataset+'_'+st+'_'+score_type
+
+    cm = ConfusionMatrix(y_true, y_pred)
+    cm.save_html(filename, color=(100, 50, 250))

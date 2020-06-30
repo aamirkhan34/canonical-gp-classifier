@@ -10,6 +10,7 @@ import sampling
 import selection
 import variation
 import prediction
+from detection_tracking import DetectionTracking
 
 
 def validate_get_register_count(NUMBER_OF_REGISTERS, df):
@@ -36,11 +37,11 @@ def preprocess_data(df):
 
 
 def get_scaled_data(X_train, X_test):
-    X_train, X_test = scaling.min_max_train_test_scaling(X_train, X_test)
+    X_train, X_test = scaling.standard_train_test_scaling(X_train, X_test)
     return X_train, X_test
 
 
-def train_test_split(dataset):
+def train_test_split(df, tdp, dataset):
     if "splitted_data" not in os.listdir():
         os.makedirs("splitted_data")
 
@@ -51,15 +52,11 @@ def train_test_split(dataset):
         train = pd.read_csv("splitted_data/"+dataset+"/train.data")
         test = pd.read_csv("splitted_data/"+dataset+"/test.data")
     else:
-        df_copy = df.copy()
-
-        train = pd.read_csv(
-            name_of_dataset+"/shuttle.trn", sep=" ", header=None)
+        train = pd.read_csv(dataset+"/shuttle.trn", sep=" ", header=None)
         # Drop columns with all null values
         train = train.dropna(axis=1, how='all')
 
-        test = pd.read_csv(
-            name_of_dataset+"/shuttle.tst", sep=" ", header=None)
+        test = pd.read_csv(dataset+"/shuttle.tst", sep=" ", header=None)
         # Drop columns with all null values
         test = test.dropna(axis=1, how='all')
 
@@ -72,11 +69,25 @@ def train_test_split(dataset):
 
 
 def train_gp_classifier(generation_count, program_list, train_accuracy, fitness_scores,
-                        vr_obj, X_train, y_train, register_class_map, gen, gap, dataset,
-                        MAX_PROGRAM_SIZE, t, rp, st):
+                        vr_obj, X_train, y_train, register_class_map, gap, dataset,
+                        MAX_PROGRAM_SIZE, t, rp, st, NUMBER_OF_REGISTERS):
+    # Detection tracking
+    dt_obj = DetectionTracking(list(register_class_map.values()))
+
+    # Attributes of dataset
+    source_x = list(range(0, X_train.shape[1] - 1))
+
+    # Registers
+    target_r = list(range(0, NUMBER_OF_REGISTERS))
+    source_r = list(range(0, NUMBER_OF_REGISTERS))
+
+    # Operators
+    ops = [0, 1, 2, 3]
+
     # Sampling function mapper
     sampling_mapper = {"uniformly": sampling.uniform_sampling,
                        "equally": sampling.balanced_uniform_sampling}
+    sample_flag = False
 
     for gen in range(generation_count):
         print("Generation: ", gen+1)
@@ -84,13 +95,20 @@ def train_gp_classifier(generation_count, program_list, train_accuracy, fitness_
         if (gen % rp) == 0:
             print("Sampling..")
             X_train_t, y_train_t = sampling_mapper[st](X_train, y_train, t)
+            sample_flag = True
 
         # Breeder model for selection-replacement
         fitness_scores = selection.get_fitness_scores(
-            fitness_scores, program_list, vr_obj, X_train_t, y_train_t, register_class_map, gen, gap)
+            fitness_scores, program_list, vr_obj, X_train_t, y_train_t, register_class_map, gen, gap, sample_flag, dt_obj)
+
+        sample_flag = False
 
         program_list, fitness_scores = selection.rank_remove_worst_gap(
             gap, fitness_scores, program_list, register_class_map, dataset)
+
+        # Update detection tracker for best individual
+        fit_score_best = selection.get_fitness_score_of_program(
+            program_list[0], vr_obj, X_train_t, y_train_t, register_class_map, gen, dt_obj, True)
 
         train_accuracy.append(
             round((fitness_scores[list(fitness_scores.keys())[0]]/X_train_t.shape[0])*100, 2))
@@ -104,14 +122,15 @@ def train_gp_classifier(generation_count, program_list, train_accuracy, fitness_
             selected_programs, gap, MAX_PROGRAM_SIZE)
 
         # Mutation
-        offsprings = variation.mutation(offsprings)
+        offsprings = variation.mutation(
+            offsprings, source_x, target_r, source_r, ops, vr_obj, X_train_t, y_train_t, register_class_map)
 
         # Adding offsprings to program list
         program_list = program_list + offsprings
 
     print(train_accuracy)
 
-    return train_accuracy, program_list
+    return train_accuracy, program_list, dt_obj
 
 
 def save_and_test_champ_classifier(program_list, X_train, y_train, X_test, y_test, register_class_map,
@@ -126,12 +145,18 @@ def save_and_test_champ_classifier(program_list, X_train, y_train, X_test, y_tes
 
     # Check saved model detectionRate - test data
     prediction_list2 = prediction.predict(
-        X_test, "best_programs/"+dataset+"/"+st+"DetectionRate/best_program.json", NUMBER_OF_REGISTERS)
+        X_test, "best_programs/"+dataset+"/"+st+"/DetectionRate/best_program.json", NUMBER_OF_REGISTERS)
 
     if prediction_list1:
         print("Accuracy for Champ classifier(Accuracy): ", round(prediction.classifier_accuracy(
             prediction_list1, y_test), 4))
 
+        prediction.save_confusion_matrix(
+            y_test, prediction_list1, dataset, st, "accuracy")
+
     if prediction_list2:
         print("Accuracy for Champ classifier(DetectionRate): ", round(prediction.classifier_accuracy(
             prediction_list2, y_test), 4))
+
+        prediction.save_confusion_matrix(
+            y_test, prediction_list2, dataset, st, "detection_rate")

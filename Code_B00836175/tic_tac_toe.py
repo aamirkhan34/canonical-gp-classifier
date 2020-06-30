@@ -9,6 +9,7 @@ import scaling
 import selection
 import variation
 import prediction
+from detection_tracking import DetectionTracking
 
 
 def validate_get_register_count(NUMBER_OF_REGISTERS, df):
@@ -48,7 +49,7 @@ def get_scaled_data(X_train, X_test):
     return X_train, X_test
 
 
-def train_test_split(df, tdf, dataset):
+def train_test_split(df, tdp, dataset):
     if "splitted_data" not in os.listdir():
         os.makedirs("splitted_data")
 
@@ -61,7 +62,7 @@ def train_test_split(df, tdf, dataset):
     else:
         df_copy = df.copy()
 
-        train = df_copy.sample(frac=(1 - tdf/float(100)), random_state=0)
+        train = df_copy.sample(frac=(1 - tdp/float(100)), random_state=0)
         test = df_copy.drop(train.index)
 
         train.to_csv("splitted_data/"+dataset+"/train.data", index=False)
@@ -73,17 +74,34 @@ def train_test_split(df, tdf, dataset):
 
 
 def train_gp_classifier(generation_count, program_list, train_accuracy, fitness_scores,
-                        vr_obj, X_train, y_train, register_class_map, gen, gap, dataset,
-                        MAX_PROGRAM_SIZE, t, rp, st):
+                        vr_obj, X_train, y_train, register_class_map, gap, dataset,
+                        MAX_PROGRAM_SIZE, t, rp, st, NUMBER_OF_REGISTERS):
+    # Detection tracking
+    dt_obj = DetectionTracking(list(register_class_map.values()))
+
+    # Attributes of dataset
+    source_x = list(range(0, X_train.shape[1] - 1))
+
+    # Registers
+    target_r = list(range(0, NUMBER_OF_REGISTERS))
+    source_r = list(range(0, NUMBER_OF_REGISTERS))
+
+    # Operators
+    ops = [0, 1, 2, 3]
+
     for gen in range(generation_count):
         print("Generation: ", gen+1)
 
         # Breeder model for selection-replacement
         fitness_scores = selection.get_fitness_scores(
-            fitness_scores, program_list, vr_obj, X_train, y_train, register_class_map, gen, gap)
+            fitness_scores, program_list, vr_obj, X_train, y_train, register_class_map, gen, gap, False, dt_obj)
 
         program_list, fitness_scores = selection.rank_remove_worst_gap(
             gap, fitness_scores, program_list, register_class_map, dataset)
+
+        # Update detection tracker for best individual
+        fit_score_best = selection.get_fitness_score_of_program(
+            program_list[0], vr_obj, X_train, y_train, register_class_map, gen, dt_obj, True)
 
         train_accuracy.append(
             round((fitness_scores[list(fitness_scores.keys())[0]]/X_train.shape[0])*100, 2))
@@ -97,14 +115,15 @@ def train_gp_classifier(generation_count, program_list, train_accuracy, fitness_
             selected_programs, gap, MAX_PROGRAM_SIZE)
 
         # Mutation
-        offsprings = variation.mutation(offsprings)
+        offsprings = variation.mutation(
+            offsprings, source_x, target_r, source_r, ops, vr_obj, X_train, y_train, register_class_map)
 
         # Adding offsprings to program list
         program_list = program_list + offsprings
 
     print(train_accuracy)
 
-    return train_accuracy, program_list
+    return train_accuracy, program_list, dt_obj
 
 
 def save_and_test_champ_classifier(program_list, X_train, y_train, X_test, y_test, register_class_map,
